@@ -1,0 +1,14 @@
+resume-chat/
+├── functions/              # Cloudflare Pages Functions
+│   └── api/
+│       └── chat.js        # Chat API endpoint
+├── public/                # Static files served directly
+│   ├── index.html
+│   ├── styles.css
+│   └── js/
+│       └── chat.js        # Frontend chat functionality
+├── src/                   # Source files that might need processing
+│   └── context/
+│       └── hidden-context.json
+├── package.json
+└── README.md 

@@ -1,0 +1,13 @@
+name = "resume-chat"
+compatibility_date = "2024-02-20"
+main = "./functions/[[path]].js"
+
+[site]
+bucket = "./public"
+
+[[kv_namespaces]]
+binding = "RESUME_DATA"
+id = "007e5b541cac4132942ea49faedfffc8"
+
+[vars]
+ADMIN_SECRET = "your-secure-secret-here" 

@@ -1,0 +1,26 @@
+# Environment variables
+.dev.vars
+.env
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+
+# Build output
+dist/
+build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Wrangler directory
+.wrangler/ 

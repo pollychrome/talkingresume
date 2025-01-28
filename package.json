@@ -1,0 +1,20 @@
+{
+  "name": "rezzie",
+  "version": "1.0.0",
+  "description": "Resume builder with AI chat",
+  "main": "index.js",
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public",
+    "upload-context": "node scripts/upload-context.js",
+    "test-logs": "node scripts/test-logging.js",
+    "view-logs": "curl -H 'Authorization: Bearer your_admin_secret' http://localhost:8788/api/logs"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "wrangler": "^3.22.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+} 

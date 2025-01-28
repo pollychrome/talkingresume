@@ -1,0 +1,37 @@
+{
+    "name": "Your Name",
+    "currentRole": "Your Role",
+    "experience": [
+        {
+            "role": "Example Role",
+            "company": "Example Company",
+            "duration": "2020-present",
+            "highlights": [
+                "Key achievement 1",
+                "Key achievement 2"
+            ]
+        }
+    ],
+    "skills": [
+        "JavaScript/TypeScript",
+        "React",
+        "Node.js",
+        "Python",
+        "AWS/Cloud Services",
+        "Docker",
+        "CI/CD",
+        "SQL/NoSQL Databases",
+        "System Design",
+        "Agile Methodologies"
+    ],
+    "education": {
+        "degree": "B.S. Computer Science",
+        "school": "State University",
+        "year": "2018"
+    },
+    "additionalInfo": {
+        "languages": ["English (Native)", "Spanish (Conversational)"],
+        "certifications": ["AWS Solutions Architect", "Certified Scrum Master"],
+        "interests": ["Open Source Contributing", "Tech Blogging", "AI/ML"]
+    }
+}
