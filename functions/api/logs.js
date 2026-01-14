@@ -11,17 +11,9 @@ export async function onRequest(context) {
         authQuery === adminSecret;
 
     if (!isAuthorized) {
-        // Return debug information (TEMPORARY - REMOVE IN PRODUCTION)
         return new Response(JSON.stringify({
-            error: 'Unauthorized',
-            debug: {
-                hasAdminSecret: !!adminSecret,
-                providedAuth: authQuery,
-                headerAuth: authHeader,
-                envVars: Object.keys(context.env),
-                adminSecretLength: adminSecret ? adminSecret.length : 0
-            }
-        }), { 
+            error: 'Unauthorized'
+        }), {
             status: 401,
             headers: {
                 'Content-Type': 'application/json'

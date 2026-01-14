@@ -1,37 +1,114 @@
 {
     "name": "Your Name",
-    "currentRole": "Your Role",
+    "currentRole": "Your Current Role/Title",
+    "summary": "Brief 1-2 sentence professional summary highlighting your key expertise and value proposition.",
+    "expandedSummary": "Expanded background (3-5 sentences) with more detail about your career journey, expertise, and what you're passionate about professionally. This provides context for more detailed questions.",
+
+    "hobbies": [
+        {
+            "name": "Hobby Name",
+            "description": "Brief description of this hobby and your involvement or achievements."
+        },
+        {
+            "name": "Another Hobby",
+            "description": "Description of another hobby or interest outside of work."
+        }
+    ],
+
+    "tech_journey": {
+        "overview": "Narrative paragraph describing your career journey - how you got started, key transitions, and what led you to where you are today.",
+        "key_milestones": [
+            "First significant milestone in your career (e.g., first role, key project)",
+            "Second milestone that shaped your trajectory",
+            "Third milestone demonstrating growth",
+            "Current focus or recent achievement"
+        ]
+    },
+
+    "achievements": {
+        "professional": {
+            "key_project_1": {
+                "description": "Description of a major project or professional achievement.",
+                "highlights": [
+                    "Specific measurable accomplishment",
+                    "Another key result or impact",
+                    "Third highlight showing value delivered"
+                ]
+            },
+            "key_project_2": {
+                "description": "Description of another significant professional achievement.",
+                "highlights": [
+                    "Accomplishment with metrics if possible",
+                    "Impact on team, company, or customers"
+                ]
+            }
+        },
+        "personal": {
+            "description": "Optional personal achievements worth mentioning (awards, publications, community involvement, etc.)."
+        }
+    },
+
     "experience": [
         {
-            "role": "Example Role",
-            "company": "Example Company",
-            "duration": "2020-present",
-            "highlights": [
-                "Key achievement 1",
-                "Key achievement 2"
+            "role": "Most Recent Job Title",
+            "company": "Company Name",
+            "duration": "Start Date - End Date (or Present)",
+            "achievements": [
+                "Key achievement or responsibility demonstrating impact",
+                "Another significant accomplishment with metrics if available",
+                "Third achievement showing skills or leadership"
+            ]
+        },
+        {
+            "role": "Previous Job Title",
+            "company": "Previous Company",
+            "duration": "Start - End",
+            "achievements": [
+                "Notable achievement from this role",
+                "Another accomplishment"
             ]
         }
     ],
-    "skills": [
-        "JavaScript/TypeScript",
-        "React",
-        "Node.js",
-        "Python",
-        "AWS/Cloud Services",
-        "Docker",
-        "CI/CD",
-        "SQL/NoSQL Databases",
-        "System Design",
-        "Agile Methodologies"
-    ],
-    "education": {
-        "degree": "B.S. Computer Science",
-        "school": "State University",
-        "year": "2018"
+
+    "skills": {
+        "technical": [
+            "Technical Skill 1",
+            "Technical Skill 2",
+            "Technical Skill 3",
+            "Technical Skill 4"
+        ],
+        "soft_skills": [
+            "Leadership",
+            "Communication",
+            "Problem Solving",
+            "Strategic Thinking"
+        ],
+        "education": {
+            "degree": "Your Degree (e.g., Bachelor of Science in Computer Science)",
+            "school": "University or Institution Name",
+            "year": "Graduation Year"
+        },
+        "interview_responses": {
+            "leadership_style": {
+                "question": "How would you describe your leadership style?",
+                "response": "Your answer describing your approach to leadership, with specific examples if possible."
+            },
+            "biggest_challenge": {
+                "question": "What's the biggest professional challenge you've overcome?",
+                "response": "Description of a significant challenge and how you addressed it, demonstrating your problem-solving abilities."
+            },
+            "career_goals": {
+                "question": "What are your career goals?",
+                "response": "Your answer about where you see yourself heading professionally and what you're looking to achieve."
+            }
+        }
     },
-    "additionalInfo": {
-        "languages": ["English (Native)", "Spanish (Conversational)"],
-        "certifications": ["AWS Solutions Architect", "Certified Scrum Master"],
-        "interests": ["Open Source Contributing", "Tech Blogging", "AI/ML"]
-    }
+
+    "certifications": [
+        {
+            "name": "Certification Name",
+            "issuer": "Issuing Organization",
+            "issued": "Date Issued"
+        }
+    ]
 }

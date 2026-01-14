@@ -1,14 +1,37 @@
 {
-  "name": "rezzie",
+  "name": "talking-resume",
   "version": "1.0.0",
-  "description": "Resume builder with AI chat",
+  "description": "AI-powered interactive resume template with chat interface. Built with Cloudflare Pages and OpenAI.",
   "main": "index.js",
   "scripts": {
     "dev": "wrangler pages dev public",
     "deploy": "wrangler pages deploy public",
     "upload-context": "node scripts/upload-context.js",
-    "test-logs": "node scripts/test-logging.js",
-    "view-logs": "curl -H 'Authorization: Bearer your_admin_secret' http://localhost:8788/api/logs"
+    "test-logs": "node scripts/test-logging.js"
+  },
+  "keywords": [
+    "resume",
+    "ai",
+    "chatbot",
+    "cloudflare",
+    "openai",
+    "gpt",
+    "portfolio",
+    "interactive",
+    "template"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/talkingresume.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/talkingresume/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/talkingresume#readme",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20240117.0",
@@ -17,4 +40,4 @@
   "devDependencies": {
     "typescript": "^5.3.3"
   }
-} 
+}

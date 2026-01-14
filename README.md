@@ -1,207 +1,144 @@
-# Interactive Resume with AI Chat
+# Talking Resume
 
-A modern, interactive resume template with an AI-powered chat interface that allows visitors to ask questions about your experience. Built with Cloudflare Pages and OpenAI.
+An AI-powered interactive resume that lets visitors ask questions about your professional experience through a conversational chat interface. Built with Cloudflare Pages, Workers, and OpenAI.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## Features
-- Clean, responsive resume layout
-- AI chat interface for interactive Q&A about your experience
-- PDF download functionality
-- Mobile-friendly design
-- Easy to customize and deploy
 
-## Prerequisites
-- Node.js and npm installed
-- Cloudflare account
-- OpenAI API key
-- GitHub account
+- **AI Chat Interface** - Visitors can ask questions about your experience, skills, and background
+- **Smart Context Selection** - Reduces API costs by 60-80% by only sending relevant context to OpenAI
+- **Cost-Optimized** - Uses GPT-3.5-turbo (~$0.002-0.005 per conversation) instead of GPT-4
+- **Responsive Design** - Works beautifully on desktop and mobile
+- **Easy Customization** - Simple JSON-based content management
+- **Serverless Architecture** - Scales automatically with zero server management
+- **Session Logging** - Track conversations through admin dashboard
 
-## Setup Instructions
+## Architecture
 
-### 1. Initial Setup
-1. Clone or fork this repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Install Wrangler CLI globally:
-   ```bash
-   npm install -g wrangler
-   ```
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Your Resume   │────▶│ Cloudflare Page │────▶│   OpenAI API    │
+│   (Browser)     │◀────│    Functions    │◀────│  (GPT-3.5-turbo)│
+└─────────────────┘     └────────┬────────┘     └─────────────────┘
+                                 │
+                        ┌────────▼────────┐
+                        │  Cloudflare KV  │
+                        │ (Context + Logs)│
+                        └─────────────────┘
+```
 
-### 2. Customize Your Resume
+## Quick Start (5 minutes)
 
-1. Update resume content in `public/index.html`:
-   - Replace profile image in `/public/images/`
-   - Update name, contact info, and social links
-   - Modify experience, skills, and other sections
-   - Customize the career objective
+### 1. Fork & Clone
+```bash
+git clone https://github.com/YOUR_USERNAME/talkingresume.git
+cd talkingresume
+npm install
+```
 
-2. Add your PDF resume:
-   - Save your static PDF resume in the `public/` directory
-   - Update the download link in `public/index.html`:
-     ```html
-     <a href="your-resume.pdf" class="download-button-fixed" title="Download PDF" download>
-     ```
-   - Make sure the href matches your PDF filename exactly
+### 2. Get Your API Keys
+- **OpenAI**: Get your API key at [platform.openai.com](https://platform.openai.com/api-keys)
+- **Cloudflare**: Create a free account at [cloudflare.com](https://cloudflare.com)
 
-3. Configure the AI knowledge base in `src/context/hidden-context.json`:
-   ```json
-   {
-     "name": "Your Name",
-     "currentRole": "Your Role",
-     "experience": [
-       {
-         "company": "Company Name",
-         "role": "Your Role",
-         "duration": "2020-Present",
-         "details": ["Achievement 1", "Achievement 2"]
-       }
-     ],
-     "education": [...],
-     "skills": [...],
-     "additionalInfo": {
-       "hobbies": [...],
-       "interests": [...],
-       "achievements": [...]
-     }
-   }
-   ```
+### 3. Configure Local Environment
+```bash
+# Copy the example environment file
+cp .dev.vars.example .dev.vars
 
-### 3. Local Development
+# Edit with your keys
+# OPENAI_API_KEY=sk-your-key-here
+# ADMIN_SECRET=your-secret-for-logs
+```
 
-1. Create a `.dev.vars` file:
-   ```
-   OPENAI_API_KEY=your_openai_api_key
-   ADMIN_SECRET=your_chosen_secret_key
-   ```
+### 4. Create KV Namespace
+```bash
+npx wrangler kv:namespace create "RESUME_DATA"
+# Copy the id from the output and update wrangler.toml
+```
 
-2. Create a KV namespace:
-   ```bash
-   wrangler kv:namespace create "RESUME_DATA"
-   ```
+### 5. Customize & Run
+```bash
+# Edit your content in:
+# - public/index.html (visible resume)
+# - src/context/hidden-context.json (AI knowledge base)
 
-3. Update `wrangler.toml` with your KV namespace ID:
-   ```toml
-   kv_namespaces = [
-     { binding = "RESUME_DATA", id = "your_namespace_id" }
-   ]
-   ```
+# Upload context and start dev server
+npm run upload-context
+npm run dev
+```
 
-4. Upload your context data:
-   ```bash
-   npm run upload-context
-   ```
+Visit `http://localhost:8788` to see your resume!
 
-5. Start the development server:
-   ```bash
-   npm run dev
-   ```
+## Documentation
 
-### 4. Deployment
+| Guide | Description |
+|-------|-------------|
+| [Setup Guide](docs/SETUP.md) | Detailed installation and deployment instructions |
+| [Customization Guide](docs/CUSTOMIZATION.md) | How to personalize content, styling, and behavior |
+| [Architecture Guide](docs/ARCHITECTURE.md) | Technical deep-dive and API reference |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 
-1. Push your code to GitHub
+## Cost Estimates
 
-2. In Cloudflare Pages:
-   - Create new project and connect your repository
-   - Configure build settings:
-     - Framework preset: None
-     - Build command: None
-     - Build output directory: public
-   - In "Functions" settings, add:
-     - KV namespace binding: RESUME_DATA
-     - Environment variable: OPENAI_API_KEY
-     - Environment variable: ADMIN_SECRET
+| Traffic Level | Monthly Conversations | Estimated Cost |
+|--------------|----------------------|----------------|
+| Low          | ~100                 | ~$0.20-0.50    |
+| Medium       | ~1,000               | ~$2-5          |
+| High         | ~10,000              | ~$20-50        |
 
-3. Configure environment variables:
-   - Add `OPENAI_API_KEY`
-   - Add `ADMIN_SECRET`
+*Cloudflare Pages free tier includes 100,000 requests/month - sufficient for most personal resumes.*
 
-4. Set up production KV namespace:
-   ```bash
-   # Create production namespace
-   wrangler kv:namespace create "RESUME_DATA"
-   
-   # Upload context
-   wrangler kv:key put --namespace-id "your_prod_namespace_id" "hidden-context" --path src/context/hidden-context.json
-   ```
+## File Structure
 
-5. Add KV namespace binding in Cloudflare Pages settings
+```
+talkingresume/
+├── public/                    # Static frontend
+│   ├── index.html            # Your resume (customize this!)
+│   ├── styles.css            # Styling
+│   ├── js/chat.js            # Chat widget
+│   └── images/               # Profile photo
+├── functions/                 # Serverless API
+│   └── api/
+│       ├── chat.js           # AI chat endpoint
+│       └── logs.js           # Admin logs viewer
+├── src/context/
+│   └── hidden-context.json   # AI knowledge base (customize this!)
+├── docs/                      # Documentation
+└── wrangler.toml             # Cloudflare configuration
+```
 
-### 5. Customization Options
+## Deployment
 
-1. Color Scheme:
-   - Edit CSS variables in `public/styles.css`:
-   ```css
-   :root {
-     --primary-color: #2c3e50;
-     --accent-color: #0059b3;
-     --bg-color: #f8f9fc;
-     --text-color: #333;
-   }
-   ```
+### Option 1: Cloudflare Pages (Recommended)
+1. Push your repo to GitHub
+2. Connect to Cloudflare Pages
+3. Set build output: `public`
+4. Add environment variables: `OPENAI_API_KEY`, `ADMIN_SECRET`
+5. Bind KV namespace: `RESUME_DATA`
 
-2. Chat Behavior:
-   - Modify chat settings in `public/js/chat.js`
-   - Update AI prompt in `functions/api/chat.js`
+### Option 2: Manual Deploy
+```bash
+npm run deploy
+```
 
-## Maintenance
+See [Setup Guide](docs/SETUP.md) for detailed deployment instructions.
 
-### Updating Content
-1. Edit resume in `public/index.html`
-2. Update AI context in `src/context/hidden-context.json`
-3. Upload new context:
-   ```bash
-   # Development
-   npm run upload-context
-   
-   # Production
-   wrangler kv:key put --namespace-id "your_prod_namespace_id" "hidden-context" --path src/context/hidden-context.json
-   ```
+## Contributing
 
-### Monitoring
-- View chat logs at:
-  - Development: `http://localhost:8788/api/logs?auth=your_admin_secret`
-  - Production: `https://your-site.pages.dev/api/logs?auth=your_admin_secret`
-
-## Support
-For issues or questions, please open a GitHub issue in the repository.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
-MIT License - feel free to modify and reuse this template for your own resume!
 
-### 6. File Structure Overview
-```
-.
-├── public/                 # Static files
-│   ├── images/            # Profile and other images
-│   ├── index.html         # Main resume HTML
-│   ├── styles.css         # CSS styles
-│   └── js/               
-│       └── chat.js        # Chat widget functionality
-├── functions/             # Cloudflare Functions
-│   └── api/
-│       └── chat.js        # Chat API endpoint
-└── src/
-    └── context/
-        └── hidden-context.json  # AI knowledge base
-```
+MIT License - feel free to use this for your own resume!
 
-### 7. Important Files to Update
-1. `public/index.html`
-   - Personal information
-   - Resume content
-   - Social links
-   - Profile photo
+## Credits
 
-2. `src/context/hidden-context.json`
-   - Detailed background info
-   - Experience details
-   - Skills and achievements
+Built with:
+- [Cloudflare Pages](https://pages.cloudflare.com/) - Hosting & serverless functions
+- [OpenAI](https://openai.com/) - AI chat capabilities
+- [Wrangler](https://developers.cloudflare.com/workers/wrangler/) - Cloudflare CLI
 
-3. `functions/api/chat.js`
-   - Customize AI prompt
-   - Adjust rate limiting if needed
+---
 
-4. `public/js/chat.js`
-   - Customize chat behavior
-   - Modify suggested questions 
+**Live Demo**: See an example at [alexbenson.info](https://alexbenson.info)

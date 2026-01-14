@@ -1,0 +1,15 @@
+# Local Development Environment Variables
+# ========================================
+# Copy this file to .dev.vars and fill in your values:
+#   cp .dev.vars.example .dev.vars
+#
+# IMPORTANT: Never commit .dev.vars to git!
+# It's already in .gitignore to protect your secrets.
+
+# OpenAI API Key
+# Get yours at: https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Admin Secret for accessing /api/logs
+# Choose a secure random string (e.g., generate with: openssl rand -hex 32)
+ADMIN_SECRET=your-secure-admin-secret-here

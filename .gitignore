@@ -1,12 +1,15 @@
-# Environment variables
+# Environment variables - NEVER commit these!
 .dev.vars
 .env
+.env.local
+.env.*.local
 
 # Dependencies
 node_modules/
 
 # Logs
 *.log
+npm-debug.log*
 
 # Build output
 dist/
@@ -17,10 +20,21 @@ build/
 .idea/
 *.swp
 *.swo
+*.sublime-*
 
 # OS files
 .DS_Store
 Thumbs.db
+*.DS_Store
 
-# Wrangler directory
-.wrangler/ 
+# Wrangler
+.wrangler/
+
+# Cloudflare
+.mf/
+
+# Debug
+*.debug
+
+# Test coverage
+coverage/
