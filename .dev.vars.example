@@ -10,6 +10,16 @@
 # Get yours at: https://platform.openai.com/api-keys
 OPENAI_API_KEY=sk-your-openai-api-key-here
 
+# Cost-sensitive default. Override only with a model available to your API project.
+OPENAI_MODEL=gpt-5.6-luna
+
 # Admin Secret for accessing /api/logs
 # Choose a secure random string (e.g., generate with: openssl rand -hex 32)
 ADMIN_SECRET=your-secure-admin-secret-here
+
+# Optional when RESUME_DATA KV is bound
+RATE_LIMIT_SALT=generate-an-independent-random-value
+CHAT_RATE_LIMIT_PER_MINUTE=10
+CHAT_LOGGING_ENABLED=true
+CHAT_LOG_RETENTION_DAYS=90
+LOG_DASHBOARD_ENTRY_LIMIT=1000

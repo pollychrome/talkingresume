@@ -1,311 +1,133 @@
-# Architecture Guide
+# Architecture
 
-Technical documentation for the Talking Resume system.
+## System boundaries
 
-## System Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        User's Browser                           │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐  │
-│  │   index.html    │  │   styles.css    │  │   chat.js      │  │
-│  │   (Resume)      │  │   (Styling)     │  │   (Widget)     │  │
-│  └────────┬────────┘  └─────────────────┘  └───────┬────────┘  │
-│           │                                         │           │
-└───────────│─────────────────────────────────────────│───────────┘
-            │                                         │
-            │ HTTP GET                     HTTP POST /api/chat
-            ▼                                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Cloudflare Pages                             │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    Edge Network                          │   │
-│  │  ┌─────────────────┐        ┌─────────────────────────┐ │   │
-│  │  │  Static Assets  │        │   Functions (Workers)   │ │   │
-│  │  │  /public/*      │        │   /functions/api/*      │ │   │
-│  │  └─────────────────┘        └───────────┬─────────────┘ │   │
-│  └─────────────────────────────────────────│───────────────┘   │
-│                                            │                    │
-│  ┌─────────────────────────────────────────▼───────────────┐   │
-│  │                    Cloudflare KV                         │   │
-│  │  ┌─────────────────┐  ┌─────────────────────────────┐   │   │
-│  │  │ hidden-context  │  │  session:{date}:{ip}        │   │   │
-│  │  │ (Resume Data)   │  │  (Chat Logs)                │   │   │
-│  │  └─────────────────┘  └─────────────────────────────┘   │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                                            │
-                                            │ HTTPS
-                                            ▼
-                              ┌─────────────────────────┐
-                              │      OpenAI API         │
-                              │   (GPT-3.5-turbo)       │
-                              └─────────────────────────┘
+```text
+Browser
+  ├─ public/index.html + public/styles.css
+  └─ public/js/chat.js
+          │ POST /api/chat
+          ▼
+Cloudflare Pages Functions
+  ├─ functions/api/              HTTP transport and status mapping
+  ├─ functions/_shared/          Domain and infrastructure modules
+  ├─ bundled resume context      src/context/hidden-context.json
+  ├─ OpenAI Responses API        Answer generation
+  └─ Cloudflare KV (optional)    Rate counters and expiring logs
 ```
 
-## Component Details
+The route handlers are intentionally thin. They validate the transport, coordinate shared services, and translate failures into public HTTP responses. Context selection, prompting, provider access, authentication, rate limiting, and logging are separate modules so they can be tested independently.
 
-### Frontend (public/)
+## Chat flow
 
-| File | Purpose |
-|------|---------|
-| `index.html` | Resume display, chat widget container |
-| `styles.css` | All styling including chat widget |
-| `js/chat.js` | Chat widget class - handles UI, API calls, typewriter effect |
-| `images/` | Profile photo and other static assets |
+1. The browser sends `{ "message": "..." }` to `POST /api/chat` with a random local session ID in `X-Chat-Session`.
+2. The route enforces the method, content type, body size, message type, and 280-character limit.
+3. If KV is bound, a one-minute per-visitor limit is checked using a one-way hash. Raw IP addresses are never stored.
+4. `selectRelevantContext` includes identity fields plus sections matching whole-word keyword categories. Experience and skills are the fallback.
+5. `buildInstructions` treats the resume JSON as untrusted reference data and asks for concise plain text.
+6. `generateAnswer` calls `POST /v1/responses` with the configured model, a timeout, a client request ID, a bounded output, and `store: false`.
+7. The browser renders the answer with `textContent`. Model output is never inserted as HTML.
+8. If enabled, one immutable interaction record is written to KV with an expiration TTL through `context.waitUntil`.
 
-### Backend (functions/)
+## Module responsibilities
 
-| File | Purpose |
-|------|---------|
-| `api/chat.js` | Main chat endpoint - context selection, OpenAI integration, logging |
-| `api/logs.js` | Admin dashboard for viewing chat sessions |
+| Module                      | Responsibility                                |
+| --------------------------- | --------------------------------------------- |
+| `api/chat.js`               | Chat orchestration and HTTP response mapping  |
+| `api/logs.js`               | Authenticated, escaped HTML dashboard         |
+| `_shared/http.js`           | JSON parsing and consistent API responses     |
+| `_shared/resume-context.js` | Relevant-context selection                    |
+| `_shared/prompt.js`         | Provider-independent instruction construction |
+| `_shared/openai.js`         | OpenAI request/response boundary              |
+| `_shared/rate-limit.js`     | KV-backed soft request limit                  |
+| `_shared/logging.js`        | Immutable, expiring interaction records       |
+| `_shared/auth.js`           | Logs-dashboard bearer authentication          |
 
-### Data (src/context/)
+## API contracts
 
-| File | Purpose |
-|------|---------|
-| `hidden-context.json` | AI knowledge base - detailed resume information |
+### `POST /api/chat`
 
-## Smart Context Selection
-
-The key optimization that reduces API costs by 60-80%.
-
-### How It Works
-
-1. **User sends question**: "What are your hobbies?"
-2. **Keyword extraction**: Message analyzed for keywords
-3. **Category matching**: Keywords matched to context categories
-4. **Selective retrieval**: Only relevant context sections included
-5. **API call**: Smaller payload sent to OpenAI
-
-### Keyword Mappings
-
-```javascript
-const contextMappings = {
-    leadership: {
-        keywords: ['leadership', 'lead', 'manage', 'team', ...],
-        sections: ['tech_journey', 'achievements.professional', 'skills.Leadership']
-    },
-    technical: {
-        keywords: ['technical', 'tech', 'product', 'development', ...],
-        sections: ['skills.technical', 'achievements.professional', 'tech_journey']
-    },
-    personal: {
-        keywords: ['hobby', 'hobbies', 'personal', 'interests', ...],
-        sections: ['hobbies']
-    },
-    // ... more categories
-};
-```
-
-### Token Savings Example
-
-| Question Type | Full Context | Smart Context | Savings |
-|--------------|--------------|---------------|---------|
-| "What are your hobbies?" | ~2000 tokens | ~400 tokens | 80% |
-| "Tell me about your experience" | ~2000 tokens | ~800 tokens | 60% |
-| "What are your skills?" | ~2000 tokens | ~600 tokens | 70% |
-
-## API Reference
-
-### POST /api/chat
-
-Send a message to the AI assistant.
-
-**Request:**
-```json
-{
-    "message": "What are your hobbies?"
-}
-```
-
-**Response:**
-```json
-{
-    "message": "<p>Here are some of my hobbies...</p><ul><li>Hobby 1</li></ul>"
-}
-```
-
-**Error Response:**
-```json
-{
-    "error": "Failed to process chat message",
-    "details": "Error description"
-}
-```
-
-### GET /api/logs
-
-View chat session logs (requires authentication).
-
-**Authentication:**
-- Query param: `?auth=YOUR_ADMIN_SECRET`
-- Or header: `Authorization: Bearer YOUR_ADMIN_SECRET`
-
-**Response:** HTML dashboard showing all chat sessions
-
-## Data Flow
-
-### Chat Message Flow
-
-```
-1. User types message
-       │
-       ▼
-2. chat.js sends POST to /api/chat
-       │
-       ▼
-3. chat.js (backend) receives request
-       │
-       ▼
-4. Fetch context from KV (or use fallback)
-       │
-       ▼
-5. getRelevantContext() filters context
-       │
-       ▼
-6. Build system prompt with filtered context
-       │
-       ▼
-7. Send to OpenAI API
-       │
-       ▼
-8. Log interaction to KV
-       │
-       ▼
-9. Return response to frontend
-       │
-       ▼
-10. chat.js displays with typewriter effect
-```
-
-### Session Logging
-
-Sessions are stored in KV with the key pattern: `session:{date}:{ip}`
+Request:
 
 ```json
 {
-    "startTime": "2024-01-15T10:30:00Z",
-    "interactions": [
-        {
-            "timestamp": "2024-01-15T10:30:05Z",
-            "question": "What are your skills?",
-            "answer": "<p>My key skills include...</p>",
-            "userAgent": "Mozilla/5.0...",
-            "ip": "192.168.1.1"
-        }
-    ]
+    "message": "What are your strongest skills?"
 }
 ```
 
-## Security Model
+Success:
 
-### Secrets Management
-
-| Secret | Storage | Purpose |
-|--------|---------|---------|
-| `OPENAI_API_KEY` | Environment variable | OpenAI API authentication |
-| `ADMIN_SECRET` | Environment variable | Logs dashboard access |
-
-**Never store secrets in:**
-- `wrangler.toml`
-- Source code
-- Git repository
-
-### Access Control
-
-- Chat endpoint: Public (no auth required)
-- Logs endpoint: Requires `ADMIN_SECRET`
-- KV data: Only accessible by Workers
-
-## Performance Considerations
-
-### Caching
-
-- Static assets: Cached at edge by Cloudflare
-- KV reads: Fast global access (~10ms)
-- OpenAI: No caching (each request is unique)
-
-### Rate Limiting
-
-Currently no rate limiting implemented. For production, consider:
-
-1. **Cloudflare Rate Limiting** (paid feature)
-2. **Custom implementation** in chat.js:
-
-```javascript
-// Example rate limit check
-const ip = context.request.headers.get('CF-Connecting-IP');
-const key = `ratelimit:${ip}`;
-const count = await context.env.RESUME_DATA.get(key);
-if (count && parseInt(count) > 10) {
-    return new Response('Rate limited', { status: 429 });
+```json
+{
+    "message": "Plain-text answer"
 }
 ```
 
-### Session Cleanup
+Error:
 
-Old sessions are automatically cleaned up:
-- Keeps last 1000 sessions
-- Cleanup runs after each new log entry
-- Sorted by session key (date-based)
-
-## Deployment Architecture
-
-### Development
-```
-Local Machine → Wrangler Dev Server → Local KV
-```
-
-### Production
-```
-GitHub → Cloudflare Pages Build → Global Edge Network
-                                          │
-                                          ├── Static assets (cached)
-                                          ├── Functions (cold start ~5ms)
-                                          └── KV (global, ~10ms)
-```
-
-## Extending the System
-
-### Adding New Endpoints
-
-Create a new file in `functions/api/`:
-
-```javascript
-// functions/api/stats.js
-export async function onRequest(context) {
-    // Your logic here
-    return new Response(JSON.stringify({ status: 'ok' }), {
-        headers: { 'Content-Type': 'application/json' }
-    });
+```json
+{
+    "error": {
+        "code": "invalid_message",
+        "message": "Message is required."
+    }
 }
 ```
 
-### Adding Context Categories
+Expected statuses include `400`, `405`, `413`, `415`, `429`, `502`, `503`, and `504`. Internal and provider error details are never returned to the browser.
 
-1. Add data to `hidden-context.json`
-2. Add keyword mapping in `chat.js`
-3. Upload new context: `npm run upload-context`
+### `GET /api/logs`
 
-### Switching AI Providers
+Requires `Authorization: Bearer <ADMIN_SECRET>`. Query-string credentials are rejected to avoid leaking secrets through browser history, analytics, logs, or referrer headers.
 
-The system can be adapted to other providers:
+The dashboard uses native `<details>` elements rather than JavaScript, escapes every stored value, sets `Cache-Control: no-store`, and applies a restrictive Content Security Policy.
 
-```javascript
-// Example: Anthropic Claude
-const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': context.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2024-01-01'
-    },
-    body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 500,
-        messages: [{ role: 'user', content: message }]
-    })
-});
+## KV data model
+
+Interaction keys are append-only:
+
+```text
+interaction:{reverseTimestamp}:{sessionId}:{uuid}
 ```
+
+Each value contains the session ID, timestamp, question, answer or error code, and optional OpenAI request ID. The reversed timestamp keeps the newest records first under KV's lexicographic listing. Records expire after `CHAT_LOG_RETENTION_DAYS` (90 by default). Append-only writes avoid the lost-update problem caused by read-modify-write session arrays in eventually consistent KV.
+
+Rate-limit keys are short-lived:
+
+```text
+rate:{minuteWindow}:{sha256(visitorSalt + ip)}
+```
+
+This is a cost-control backstop, not a strict distributed quota: Workers KV counters are not atomic and are eventually consistent. For an adversarial or high-traffic deployment, enforce the primary limit with Cloudflare's edge rate-limiting product and keep this application check as defense in depth.
+
+## Security and privacy decisions
+
+- OpenAI and admin credentials exist only in server-side environment variables.
+- OpenAI responses are requested with `store: false`.
+- Raw visitor IP addresses and user-agent strings are not logged.
+- Chat and dashboard responses are non-cacheable.
+- Browser and dashboard output paths are safe against stored XSS.
+- Missing or weak `ADMIN_SECRET` configuration fails closed.
+- Provider failures expose stable application errors and preserve request IDs only in server logs/KV.
+- Log retention is bounded by KV TTL rather than a full namespace scan on every request.
+
+## Configuration
+
+| Variable                     | Required            | Default        | Purpose                                       |
+| ---------------------------- | ------------------- | -------------- | --------------------------------------------- |
+| `OPENAI_API_KEY`             | Yes                 | —              | Provider authentication                       |
+| `OPENAI_MODEL`               | No                  | `gpt-5.6-luna` | Model override                                |
+| `ADMIN_SECRET`               | For logs            | —              | Dashboard bearer token; minimum 16 characters |
+| `RATE_LIMIT_SALT`            | Recommended with KV | `ADMIN_SECRET` | Visitor-hash salt                             |
+| `CHAT_RATE_LIMIT_PER_MINUTE` | No                  | `10`           | Soft per-visitor application limit            |
+| `CHAT_LOGGING_ENABLED`       | No                  | `true`         | Set to `false` to disable interaction logs    |
+| `CHAT_LOG_RETENTION_DAYS`    | No                  | `90`           | Log TTL, clamped to 1–365 days                |
+| `LOG_DASHBOARD_ENTRY_LIMIT`  | No                  | `1000`         | Dashboard read cap, clamped to 1–5000         |
+
+## Verification strategy
+
+- Unit tests cover validation, context routing, provider parsing, authentication, rate limiting, logging, and XSS escaping.
+- Endpoint tests verify public contracts and the OpenAI request shape.
+- ESLint and Prettier enforce consistent source quality.
+- `wrangler pages functions build` verifies the deployable bundle, including the JSON context import.
+- `npm audit` tracks vulnerable tooling dependencies.

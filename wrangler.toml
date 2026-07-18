@@ -1,31 +1,11 @@
-name = "resume-chat"
-compatibility_date = "2024-02-20"
-main = "./functions/[[path]].js"
+"$schema" = "./node_modules/wrangler/config-schema.json"
+name = "talking-resume"
+pages_build_output_dir = "./public"
+compatibility_date = "2026-07-18"
+send_metrics = false
 
-[site]
-bucket = "./public"
-
-# KV namespace for storing resume context and chat logs
-# Replace with your own namespace ID after running:
-#   wrangler kv:namespace create "RESUME_DATA"
-[[kv_namespaces]]
-binding = "RESUME_DATA"
-id = "YOUR_KV_NAMESPACE_ID"
-
-# For local development preview, create a preview namespace:
-#   wrangler kv:namespace create "RESUME_DATA" --preview
-# preview_id = "YOUR_PREVIEW_NAMESPACE_ID"
-
-# =============================================================================
-# IMPORTANT: Environment Variables
-# =============================================================================
-# Do NOT add secrets here! Set them via:
-#
-# Local Development:
-#   Create a .dev.vars file (see .dev.vars.example)
-#
-# Production (Cloudflare Dashboard):
-#   Settings > Environment Variables > Add:
-#   - OPENAI_API_KEY: Your OpenAI API key
-#   - ADMIN_SECRET: Secret key to access /api/logs
-# =============================================================================
+# Add the production namespace created for this project before deployment.
+# Local development works without KV; logging and rate limiting are disabled.
+# [[kv_namespaces]]
+# binding = "RESUME_DATA"
+# id = "YOUR_KV_NAMESPACE_ID"

@@ -1,144 +1,97 @@
 # Talking Resume
 
-An AI-powered interactive resume that lets visitors ask questions about your professional experience through a conversational chat interface. Built with Cloudflare Pages, Workers, and OpenAI.
+An interactive resume with a small, server-rendered AI chat backend. Static assets and API routes run on Cloudflare Pages; resume context stays in the server bundle and is sent to OpenAI only when it is relevant to a visitor's question.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+## What is included
 
-## Features
+- Responsive, accessible resume and chat interface
+- Server-side OpenAI Responses API integration
+- Keyword-based context selection to limit request size
+- Strict request validation and safe plain-text rendering
+- Optional KV-backed rate limiting and expiring interaction logs
+- Header-authenticated, CSP-protected logs dashboard
+- Automated tests, linting, formatting, bundle validation, and dependency auditing
+- GitHub Actions enforcement for every push and pull request
 
-- **AI Chat Interface** - Visitors can ask questions about your experience, skills, and background
-- **Smart Context Selection** - Reduces API costs by 60-80% by only sending relevant context to OpenAI
-- **Cost-Optimized** - Uses GPT-3.5-turbo (~$0.002-0.005 per conversation) instead of GPT-4
-- **Responsive Design** - Works beautifully on desktop and mobile
-- **Easy Customization** - Simple JSON-based content management
-- **Serverless Architecture** - Scales automatically with zero server management
-- **Session Logging** - Track conversations through admin dashboard
+## Requirements
 
-## Architecture
+- Node.js 22.13 or newer
+- An [OpenAI API key](https://platform.openai.com/api-keys)
+- A Cloudflare account for deployment
+- A Cloudflare KV namespace if you want rate limiting and interaction logs
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Your Resume   │────▶│ Cloudflare Page │────▶│   OpenAI API    │
-│   (Browser)     │◀────│    Functions    │◀────│  (GPT-3.5-turbo)│
-└─────────────────┘     └────────┬────────┘     └─────────────────┘
-                                 │
-                        ┌────────▼────────┐
-                        │  Cloudflare KV  │
-                        │ (Context + Logs)│
-                        └─────────────────┘
-```
+## Quick start
 
-## Quick Start (5 minutes)
-
-### 1. Fork & Clone
 ```bash
-git clone https://github.com/YOUR_USERNAME/talkingresume.git
-cd talkingresume
 npm install
-```
-
-### 2. Get Your API Keys
-- **OpenAI**: Get your API key at [platform.openai.com](https://platform.openai.com/api-keys)
-- **Cloudflare**: Create a free account at [cloudflare.com](https://cloudflare.com)
-
-### 3. Configure Local Environment
-```bash
-# Copy the example environment file
 cp .dev.vars.example .dev.vars
-
-# Edit with your keys
-# OPENAI_API_KEY=sk-your-key-here
-# ADMIN_SECRET=your-secret-for-logs
-```
-
-### 4. Create KV Namespace
-```bash
-npx wrangler kv:namespace create "RESUME_DATA"
-# Copy the id from the output and update wrangler.toml
-```
-
-### 5. Customize & Run
-```bash
-# Edit your content in:
-# - public/index.html (visible resume)
-# - src/context/hidden-context.json (AI knowledge base)
-
-# Upload context and start dev server
-npm run upload-context
 npm run dev
 ```
 
-Visit `http://localhost:8788` to see your resume!
+Then open `http://localhost:8788`.
+
+Before running the site, update:
+
+- `public/index.html` for the visible resume
+- `public/images/profile.jpeg` for the profile image
+- `src/context/hidden-context.json` for the server-side AI knowledge base
+- `.dev.vars` with `OPENAI_API_KEY` and a strong `ADMIN_SECRET`
+
+The context JSON is bundled with the Pages Function and is not served as a static asset. It is still tracked in Git, so do not put secrets or information you would not want repository collaborators to read in it.
+
+## Optional KV storage
+
+Without a `RESUME_DATA` binding, chat works but logging and application-level rate limiting are disabled. To enable them:
+
+```bash
+npx wrangler kv namespace create RESUME_DATA
+```
+
+Uncomment the `[[kv_namespaces]]` block in `wrangler.toml` and replace the placeholder with the returned namespace ID. Wrangler uses local storage for that binding during local development and the configured namespace after deployment.
+
+View logs with an authorization header; credentials in query strings are intentionally unsupported:
+
+```bash
+curl -H "Authorization: Bearer YOUR_ADMIN_SECRET" http://localhost:8788/api/logs
+```
+
+## Quality checks
+
+```bash
+npm run check
+npm audit
+```
+
+`npm run check` runs ESLint, Prettier verification, the Node test suite, and a production-equivalent Pages Functions bundle.
+
+## Project structure
+
+```text
+public/                   Static resume and chat UI
+functions/api/            Thin HTTP route handlers
+functions/_shared/        Domain, provider, security, and persistence modules
+src/context/              Server-side resume knowledge base
+test/                     Unit and endpoint tests
+docs/                     Setup, customization, architecture, troubleshooting
+wrangler.toml             Cloudflare Pages configuration
+```
 
 ## Documentation
 
-| Guide | Description |
-|-------|-------------|
-| [Setup Guide](docs/SETUP.md) | Detailed installation and deployment instructions |
-| [Customization Guide](docs/CUSTOMIZATION.md) | How to personalize content, styling, and behavior |
-| [Architecture Guide](docs/ARCHITECTURE.md) | Technical deep-dive and API reference |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
-
-## Cost Estimates
-
-| Traffic Level | Monthly Conversations | Estimated Cost |
-|--------------|----------------------|----------------|
-| Low          | ~100                 | ~$0.20-0.50    |
-| Medium       | ~1,000               | ~$2-5          |
-| High         | ~10,000              | ~$20-50        |
-
-*Cloudflare Pages free tier includes 100,000 requests/month - sufficient for most personal resumes.*
-
-## File Structure
-
-```
-talkingresume/
-├── public/                    # Static frontend
-│   ├── index.html            # Your resume (customize this!)
-│   ├── styles.css            # Styling
-│   ├── js/chat.js            # Chat widget
-│   └── images/               # Profile photo
-├── functions/                 # Serverless API
-│   └── api/
-│       ├── chat.js           # AI chat endpoint
-│       └── logs.js           # Admin logs viewer
-├── src/context/
-│   └── hidden-context.json   # AI knowledge base (customize this!)
-├── docs/                      # Documentation
-└── wrangler.toml             # Cloudflare configuration
-```
+- [Setup](docs/SETUP.md)
+- [Customization](docs/CUSTOMIZATION.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## Deployment
 
-### Option 1: Cloudflare Pages (Recommended)
-1. Push your repo to GitHub
-2. Connect to Cloudflare Pages
-3. Set build output: `public`
-4. Add environment variables: `OPENAI_API_KEY`, `ADMIN_SECRET`
-5. Bind KV namespace: `RESUME_DATA`
-
-### Option 2: Manual Deploy
 ```bash
+npm run check
 npm run deploy
 ```
 
-See [Setup Guide](docs/SETUP.md) for detailed deployment instructions.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+Configure `OPENAI_API_KEY`, `ADMIN_SECRET`, and the optional settings from `.dev.vars.example` as encrypted environment variables in Cloudflare. Add the `RESUME_DATA` KV binding in `wrangler.toml` or the Pages dashboard before deploying if you need logging and rate limiting.
 
 ## License
 
-MIT License - feel free to use this for your own resume!
-
-## Credits
-
-Built with:
-- [Cloudflare Pages](https://pages.cloudflare.com/) - Hosting & serverless functions
-- [OpenAI](https://openai.com/) - AI chat capabilities
-- [Wrangler](https://developers.cloudflare.com/workers/wrangler/) - Cloudflare CLI
-
----
-
-**Live Demo**: See an example at [alexbenson.info](https://alexbenson.info)
+[MIT](LICENSE)

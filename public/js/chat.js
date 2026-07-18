@@ -1,180 +1,220 @@
-// Initialize chat widget when the DOM is fully loaded
-document.addEventListener('DOMContentLoaded', () => {
-    new ChatWidget();
-});
+const HISTORY_STORAGE_KEY = 'talking-resume:history:v2';
+const SESSION_STORAGE_KEY = 'talking-resume:session:v1';
+const MAX_HISTORY_LENGTH = 50;
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{16,64}$/;
+const WELCOME_MESSAGE =
+    "Hello! Feel free to ask questions about the resume owner's experience and background.";
 
-// Chat widget initialization and management
+class ChatServiceError extends Error {}
+
 class ChatWidget {
     constructor() {
-        this.init();
-        this.initializeInfoIcons();
-    }
+        this.container = getRequiredElement('chat-container');
+        this.form = getRequiredElement('chat-form');
+        this.input = getRequiredElement('chat-input');
+        this.sendButton = getRequiredElement('chat-send');
+        this.toggleButton = getRequiredElement('chat-toggle');
+        this.minimizeButton = this.container.querySelector('.chat-minimize');
+        this.messagesContainer = getRequiredElement('chat-messages');
+        this.charCounter = getRequiredElement('char-counter');
+        this.suggestions = [...document.querySelectorAll('[data-question]')];
+        this.infoButtons = [...document.querySelectorAll('.info-icon[data-company]')];
+        this.maxLength = Number(this.input.maxLength) || 280;
+        this.history = [];
+        this.isSending = false;
+        this.sessionId = getOrCreateSessionId();
 
-    init() {
-        // Initialize DOM elements
-        this.widget = document.getElementById('chat-widget');
-        this.toggleButton = document.getElementById('chat-toggle');
-        this.container = document.getElementById('chat-container');
-        this.messagesContainer = document.getElementById('chat-messages');
-        this.input = document.getElementById('chat-input');
-        this.sendButton = document.getElementById('chat-send');
-        this.charCounter = document.getElementById('char-counter');
-        this.maxLength = parseInt(this.input.getAttribute('maxlength')) || 280;
-        
-        // Initialize components
-        this.conversationHistory = [];
-        this.initializeCharCounter();
-        this.initializeEventListeners();
-        
-        // Clear existing messages and add welcome message
-        while (this.messagesContainer.firstChild) {
-            this.messagesContainer.removeChild(this.messagesContainer.firstChild);
+        if (!this.restoreHistory()) {
+            this.appendMessage(WELCOME_MESSAGE, 'assistant');
         }
-        
-        // Add welcome message
-        const welcomeMessage = document.createElement('div');
-        welcomeMessage.className = 'message bot';
-        welcomeMessage.textContent = "Hello! Feel free to ask questions about the resume owner's experience and background.";
-        this.messagesContainer.appendChild(welcomeMessage);
-        
-        // Create input wrapper div to hold suggestions and input
-        const inputWrapper = document.createElement('div');
-        inputWrapper.className = 'input-suggestions-wrapper';
-        
-        // Add suggested questions
-        const suggestedQuestions = document.createElement('div');
-        suggestedQuestions.className = 'suggested-questions';
-        
-        const questions = [
-            "Hobbies",
-            "Tech Journey",
-            "Achievements"
-        ];
-        
-        questions.forEach(question => {
-            const button = document.createElement('button');
-            button.className = 'suggestion';
-            button.innerHTML = this.formatMessage(question);
-            
-            button.addEventListener('click', () => {
-                console.log('Suggestion clicked:', question);
-                
-                // Hide this specific suggestion
-                button.style.display = 'none';
+        this.bindEvents();
+        this.updateInputState();
+    }
 
-                // Set input value and send through main send path
-                this.input.value = question;
-                this.sendMessage();
-                
-                // Hide suggestions container if all suggestions are hidden
-                const visibleSuggestions = suggestedQuestions.querySelectorAll('.suggestion:not([style*="display: none"])');
-                if (visibleSuggestions.length === 0) {
-                    suggestedQuestions.classList.add('hidden');
-                }
+    bindEvents() {
+        this.toggleButton.addEventListener('click', () => this.open());
+        this.minimizeButton?.addEventListener('click', () => this.minimize());
+        this.form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            void this.sendMessage(this.input.value);
+        });
+        this.input.addEventListener('input', () => this.updateInputState());
+        this.input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                this.form.requestSubmit();
+            }
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !this.container.classList.contains('hidden')) {
+                this.minimize();
+            }
+        });
+
+        for (const suggestion of this.suggestions) {
+            suggestion.addEventListener('click', () => {
+                suggestion.hidden = true;
+                this.hideEmptySuggestions();
+                void this.sendMessage(suggestion.dataset.question);
             });
-            
-            suggestedQuestions.appendChild(button);
-        });
-        
-        // Add suggestions to input wrapper
-        inputWrapper.appendChild(suggestedQuestions);
-        
-        // Move input field to wrapper
-        const inputContainer = document.querySelector('.chat-input-container');
-        inputWrapper.appendChild(inputContainer);
-        
-        // Add input wrapper to container
-        this.container.appendChild(inputWrapper);
+        }
 
-        // Create indicators after all other elements
-        this.createTypingIndicator();
+        for (const button of this.infoButtons) {
+            button.addEventListener('click', () => {
+                this.open();
+                void this.sendMessage(
+                    `Tell me more about the experience at ${button.dataset.company}`,
+                );
+            });
+        }
     }
 
-    initializeEventListeners() {
-        // Toggle chat open/close
-        this.toggleButton.addEventListener('click', () => {
-            if (this.container.classList.contains('hidden')) {
-                this.openChat();
-            }
-        });
-
-        // Minimize button handling with smooth transition
-        document.addEventListener('click', (e) => {
-            const minimizeBtn = e.target.closest('.chat-minimize');
-            if (minimizeBtn) {
-                e.preventDefault();
-                this.minimizeChat();
-            }
-        });
-
-        // Handle send message - bind to ensure correct 'this' context
-        this.sendButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.sendMessage().catch(console.error);
-        });
-        
-        // Handle enter key - bind to ensure correct 'this' context
-        this.input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.sendMessage().catch(console.error);
-            }
-        });
-
-        // Auto-resize input
-        this.input.addEventListener('input', () => {
-            this.input.style.height = 'auto';
-            this.input.style.height = Math.min(this.input.scrollHeight, 100) + 'px';
-        });
-
-        // Handle transition end
-        this.container.addEventListener('transitionend', (e) => {
-            if (e.propertyName === 'transform') {
-                if (this.container.classList.contains('hidden')) {
-                    this.container.style.display = 'none';
-                    this.toggleButton.classList.remove('hidden');
-                    this.toggleButton.classList.add('visible');
-                }
-            }
-        });
-
-        // Initial scroll to bottom
-        this.scrollToBottom();
-    }
-
-    openChat() {
-        this.toggleButton.classList.remove('visible');
+    open() {
+        this.container.classList.remove('hidden');
         this.toggleButton.classList.add('hidden');
-        
-        // Show container after toggle button starts hiding
-        setTimeout(() => {
-            this.container.style.display = 'flex';
-            // Trigger reflow for smooth animation
-            void this.container.offsetWidth;
-            this.container.classList.remove('hidden');
-            this.container.classList.add('visible');
-            document.body.classList.add('chat-open');
-            this.scrollToBottom();
-            this.input.focus();
-        }, 150);
+        this.container.setAttribute('aria-hidden', 'false');
+        this.toggleButton.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('chat-open');
+        this.scrollToBottom();
+        this.input.focus();
     }
 
-    minimizeChat() {
-        this.container.classList.remove('visible');
-        this.container.classList.add('hidden');
-        document.body.classList.remove('chat-open');
-        
-        // Show toggle button after animation
-        setTimeout(() => {
-            this.toggleButton.classList.remove('hidden');
-            this.toggleButton.classList.add('visible');
-        }, 300);
-    }
-
-    closeChat() {
+    minimize() {
         this.container.classList.add('hidden');
         this.toggleButton.classList.remove('hidden');
+        this.container.setAttribute('aria-hidden', 'true');
+        this.toggleButton.setAttribute('aria-expanded', 'false');
         document.body.classList.remove('chat-open');
+        this.toggleButton.focus();
+    }
+
+    async sendMessage(rawMessage) {
+        const message = rawMessage?.trim();
+        if (!message || this.isSending) return;
+
+        this.appendMessage(message, 'user');
+        this.input.value = '';
+        this.updateInputState();
+        this.setSendingState(true);
+
+        const statusElement = this.appendMessage('Thinking…', 'status');
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Chat-Session': this.sessionId,
+                },
+                body: JSON.stringify({ message }),
+            });
+            const data = await readJsonResponse(response);
+
+            if (!response.ok) {
+                throw new ChatServiceError(data?.error?.message || 'The chat request failed.');
+            }
+            if (typeof data?.message !== 'string' || !data.message.trim()) {
+                throw new ChatServiceError('The chat service returned an invalid response.');
+            }
+
+            statusElement.remove();
+            this.appendMessage(data.message.trim(), 'assistant');
+            this.recordExchange(message, data.message.trim());
+        } catch (error) {
+            if (!(error instanceof ChatServiceError)) {
+                console.error('Chat request failed', { name: error.name });
+            }
+            statusElement.remove();
+            this.appendMessage(
+                error.message || 'Sorry, the chat is unavailable. Please try again.',
+                'error',
+            );
+        } finally {
+            this.setSendingState(false);
+            this.input.focus();
+        }
+    }
+
+    appendMessage(content, role) {
+        const element = document.createElement('div');
+        element.className = `message ${role === 'assistant' ? 'bot' : role}`;
+        element.textContent = content;
+        this.messagesContainer.append(element);
+
+        this.scrollToBottom();
+        return element;
+    }
+
+    recordExchange(message, answer) {
+        this.history.push(
+            { role: 'user', content: message },
+            { role: 'assistant', content: answer },
+        );
+        this.history = this.history.slice(-MAX_HISTORY_LENGTH);
+        this.saveHistory();
+    }
+
+    setSendingState(isSending) {
+        this.isSending = isSending;
+        this.input.disabled = isSending;
+        this.sendButton.disabled = isSending;
+        this.messagesContainer.setAttribute('aria-busy', String(isSending));
+        for (const suggestion of this.suggestions) {
+            suggestion.disabled = isSending;
+        }
+        for (const button of this.infoButtons) {
+            button.disabled = isSending;
+        }
+    }
+
+    updateInputState() {
+        const remaining = Math.max(0, this.maxLength - this.input.value.length);
+        this.charCounter.textContent = String(remaining);
+        this.charCounter.classList.toggle('near-limit', remaining < 50);
+        this.charCounter.classList.toggle('at-limit', remaining < 20);
+        this.input.style.height = 'auto';
+        this.input.style.height = `${Math.min(this.input.scrollHeight, 100)}px`;
+    }
+
+    hideEmptySuggestions() {
+        const suggestionsContainer = getRequiredElement('suggested-questions');
+        suggestionsContainer.hidden = this.suggestions.every((suggestion) => suggestion.hidden);
+    }
+
+    restoreHistory() {
+        try {
+            const storedHistory = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) ?? '[]');
+            if (!Array.isArray(storedHistory) || storedHistory.length === 0) return false;
+
+            const validHistory = storedHistory
+                .filter(
+                    (entry) =>
+                        (entry?.role === 'user' || entry?.role === 'assistant') &&
+                        typeof entry.content === 'string',
+                )
+                .slice(-MAX_HISTORY_LENGTH);
+
+            if (!validHistory.length) return false;
+
+            this.messagesContainer.replaceChildren();
+            this.history = validHistory;
+            for (const entry of validHistory) {
+                this.appendMessage(entry.content, entry.role);
+            }
+            return true;
+        } catch {
+            this.history = [];
+            localStorage.removeItem(HISTORY_STORAGE_KEY);
+            return false;
+        }
+    }
+
+    saveHistory() {
+        try {
+            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(this.history));
+        } catch {
+            // Storage may be unavailable in private browsing or restricted contexts.
+        }
     }
 
     scrollToBottom() {
@@ -182,353 +222,37 @@ class ChatWidget {
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
         });
     }
+}
 
-    initializeCharCounter() {
-        // Update character counter on input
-        this.input.addEventListener('input', () => {
-            const remaining = this.maxLength - this.input.value.length;
-            this.charCounter.textContent = remaining;
-            
-            // Update counter color based on remaining chars
-            this.charCounter.classList.toggle('near-limit', remaining < 50);
-            this.charCounter.classList.toggle('at-limit', remaining < 20);
-            
-            // Existing auto-resize code
-            this.input.style.height = 'auto';
-            this.input.style.height = Math.min(this.input.scrollHeight, 100) + 'px';
-        });
+function getRequiredElement(id) {
+    const element = document.getElementById(id);
+    if (!element) {
+        throw new Error(`Missing required element: #${id}`);
     }
+    return element;
+}
 
-    formatMessage(text) {
-        if (!text) return '';
-        
-        // Format bold text first
-        text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        
-        // Split text into lines
-        const lines = text.split('\n');
-        let formattedLines = [];
-        let inList = false;
-        
-        lines.forEach((line, index) => {
-            const trimmedLine = line.trim();
-            
-            // Check for bullet points
-            if (trimmedLine.startsWith('- ')) {
-                if (!inList) {
-                    inList = true;
-                    formattedLines.push('<ul>');
-                }
-                formattedLines.push(`<li>${trimmedLine.substring(2)}</li>`);
-            } else if (trimmedLine.startsWith('* ')) {
-                if (!inList) {
-                    inList = true;
-                    formattedLines.push('<ul>');
-                }
-                formattedLines.push(`<li>${trimmedLine.substring(2)}</li>`);
-            } else {
-                if (inList) {
-                    inList = false;
-                    formattedLines.push('</ul>');
-                }
-                formattedLines.push(line);
-            }
-        });
-        
-        // Close any open list
-        if (inList) {
-            formattedLines.push('</ul>');
-        }
-        
-        return formattedLines.join('\n');
+function getOrCreateSessionId() {
+    try {
+        const storedId = localStorage.getItem(SESSION_STORAGE_KEY);
+        if (SESSION_ID_PATTERN.test(storedId ?? '')) return storedId;
+
+        const sessionId = crypto.randomUUID();
+        localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+        return sessionId;
+    } catch {
+        return crypto.randomUUID();
     }
+}
 
-    loadConversation() {
-        try {
-            // Load conversation from localStorage
-            const saved = localStorage.getItem('chatHistory');
-            if (saved) {
-                this.conversationHistory = JSON.parse(saved);
-                
-                // Replay messages in the UI
-                this.messagesContainer.innerHTML = ''; // Clear default message
-                this.conversationHistory.forEach(msg => {
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = `message ${msg.role === 'user' ? 'user' : 'bot'}`;
-                    messageDiv.innerHTML = this.formatMessage(msg.content);
-                    this.messagesContainer.insertBefore(messageDiv, this.typingIndicator);
-                });
-                this.scrollToBottom();
-            }
-        } catch (error) {
-            console.error('Error loading conversation:', error);
-            this.conversationHistory = [];
-        }
+async function readJsonResponse(response) {
+    try {
+        return await response.json();
+    } catch {
+        return null;
     }
+}
 
-    saveConversation() {
-        try {
-            // Save to localStorage, but limit to last 50 messages
-            const limitedHistory = this.conversationHistory.slice(-50);
-            localStorage.setItem('chatHistory', JSON.stringify(limitedHistory));
-        } catch (error) {
-            console.error('Error saving conversation:', error);
-        }
-    }
-
-    clearConversation() {
-        // Hide typing indicator if visible
-        this.hideTypingIndicator();
-        
-        // Clear the UI
-        this.messagesContainer.innerHTML = `
-            <div class="message bot">
-                Hi! I'm an AI assistant with detailed knowledge about this candidate. 
-                Feel free to ask me anything about their experience, skills, or projects!
-            </div>
-        `;
-        
-        // Re-add typing indicator
-        this.createTypingIndicator();
-        
-        // Clear the history
-        this.conversationHistory = [];
-        this.saveConversation();
-    }
-
-    createTypingIndicator() {
-        // Create thinking indicator
-        this.thinkingIndicator = document.createElement('div');
-        this.thinkingIndicator.className = 'message thinking';
-        this.thinkingIndicator.textContent = 'Thinking';
-        this.thinkingIndicator.style.display = 'none';
-        this.messagesContainer.appendChild(this.thinkingIndicator);
-
-        // Create typing indicator
-        this.typingIndicator = document.createElement('div');
-        this.typingIndicator.className = 'message typing';
-        this.typingIndicator.textContent = 'Typing';
-        this.typingIndicator.style.display = 'none';
-        this.messagesContainer.appendChild(this.typingIndicator);
-    }
-
-    showThinkingIndicator() {
-        if (this.thinkingIndicator) {
-            this.thinkingIndicator.style.display = 'flex';
-            this.scrollToBottom();
-        }
-    }
-
-    hideThinkingIndicator() {
-        if (this.thinkingIndicator) {
-            this.thinkingIndicator.style.display = 'none';
-        }
-    }
-
-    showTypingIndicator() {
-        if (this.typingIndicator) {
-            this.typingIndicator.style.display = 'flex';
-            this.scrollToBottom();
-        }
-    }
-
-    hideTypingIndicator() {
-        if (this.typingIndicator) {
-            this.typingIndicator.style.display = 'none';
-            this.scrollToBottom();
-        }
-    }
-
-    scrollToMessage(message) {
-        if (!message) return;
-        
-        const messageTop = message.offsetTop;
-        const containerHeight = this.messagesContainer.clientHeight;
-        const messageHeight = message.clientHeight;
-        
-        // Calculate position to show the full message
-        const scrollPosition = Math.max(0, messageTop - containerHeight / 3);
-        
-        // Smoothly scroll to the calculated position
-        this.messagesContainer.scrollTo({
-            top: scrollPosition,
-            behavior: 'smooth'
-        });
-    }
-
-    async typewriterEffect(element, html) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-        
-        // Process each child node
-        for (const node of tempDiv.childNodes) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                // Handle text nodes
-                const textNode = document.createTextNode('');
-                element.appendChild(textNode);
-                for (let i = 0; i < node.textContent.length; i++) {
-                    textNode.textContent += node.textContent[i];
-                    await new Promise(resolve => setTimeout(resolve, 40));
-                }
-            } else if (node.nodeType === Node.ELEMENT_NODE) {
-                // Create the same type of element
-                const newElement = document.createElement(node.tagName);
-                // Copy attributes
-                for (const attr of node.attributes) {
-                    newElement.setAttribute(attr.name, attr.value);
-                }
-                element.appendChild(newElement);
-                
-                // Recursively handle child elements
-                await this.typewriterEffect(newElement, node.innerHTML);
-            }
-        }
-    }
-
-    async sendMessage() {
-        const message = this.input.value.trim();
-        if (!message) return;
-
-        // Store the user's scroll position and the last message's position
-        const scrollPos = this.messagesContainer.scrollTop;
-        const wasAtBottom = (scrollPos + this.messagesContainer.clientHeight + 50) >= this.messagesContainer.scrollHeight;
-
-        // Add user message
-        const userMessageElement = this.addMessage(message, 'user');
-        
-        // Clear input and reset height
-        this.input.value = '';
-        this.input.style.height = 'auto';
-        this.charCounter.textContent = this.maxLength;
-
-        // Scroll handling for user message
-        if (wasAtBottom) {
-            this.scrollToBottom();
-        } else {
-            userMessageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
-        // Create and show thinking indicator after user message
-        const thinkingIndicator = document.createElement('div');
-        thinkingIndicator.className = 'message thinking';
-        thinkingIndicator.textContent = 'Thinking';
-        this.messagesContainer.appendChild(thinkingIndicator);
-        
-        try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
-            });
-
-            if (!response.ok) throw new Error('API request failed');
-
-            const data = await response.json();
-            thinkingIndicator.remove();
-            
-            const botResponse = data.message || data.response;
-            if (botResponse) {
-                // Create bot message element
-                const botMessageElement = document.createElement('div');
-                botMessageElement.className = 'message bot';
-                this.messagesContainer.appendChild(botMessageElement);
-
-                try {
-                    // Apply typewriter effect to the formatted HTML
-                    await this.typewriterEffect(botMessageElement, botResponse);
-                    
-                    // Save to conversation history
-                    this.conversationHistory.push({ type: 'bot', text: botResponse });
-                    this.saveConversation();
-                } catch (formatError) {
-                    console.error('Error formatting message:', formatError);
-                    botMessageElement.textContent = botResponse;
-                }
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            thinkingIndicator.remove();
-            this.addMessage('Sorry, I encountered an error. Please try again.', 'error');
-            this.scrollToBottom();
-        }
-    }
-
-    addMessage(text, type, save = true) {
-        const message = document.createElement('div');
-        message.className = `message ${type}`;
-        
-        // For user messages, we'll still use the old formatting
-        if (type === 'user') {
-            const formattedText = this.formatMessage(text);
-            message.innerHTML = formattedText;
-        } else {
-            // For bot messages, we'll use the raw text as it should already be HTML
-            message.innerHTML = text;
-        }
-        
-        this.messagesContainer.appendChild(message);
-        
-        if (save) {
-            this.conversationHistory.push({ type, text });
-            this.saveConversation();
-        }
-
-        return message;
-    }
-
-    initializeInfoIcons() {
-        document.querySelectorAll('.info-icon').forEach(icon => {
-            icon.addEventListener('click', async (event) => {
-                const company = event.currentTarget.dataset.company;
-                const message = `Tell me more about their experience at ${company}`;
-                
-                if (this.container.classList.contains('hidden')) {
-                    this.openChat();
-                }
-                
-                const userMessageElement = this.addMessage(message, 'user');
-                
-                const thinkingIndicator = document.createElement('div');
-                thinkingIndicator.className = 'message thinking';
-                thinkingIndicator.textContent = 'Thinking';
-                this.messagesContainer.appendChild(thinkingIndicator);
-                
-                try {
-                    const response = await fetch('/api/chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message })
-                    });
-
-                    if (!response.ok) throw new Error('API request failed');
-
-                    const data = await response.json();
-                    thinkingIndicator.remove();
-                    
-                    const botResponse = data.message || data.response;
-                    if (botResponse) {
-                        const botMessageElement = document.createElement('div');
-                        botMessageElement.className = 'message bot';
-                        this.messagesContainer.appendChild(botMessageElement);
-
-                        try {
-                            // Apply typewriter effect to the formatted HTML
-                            await this.typewriterEffect(botMessageElement, botResponse);
-                            
-                            // Save to conversation history
-                            this.conversationHistory.push({ type: 'bot', text: botResponse });
-                            this.saveConversation();
-                        } catch (formatError) {
-                            console.error('Error formatting message:', formatError);
-                            botMessageElement.textContent = botResponse;
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    thinkingIndicator.remove();
-                    this.addMessage('Sorry, I encountered an error. Please try again.', 'error');
-                }
-            });
-        });
-    }
-} 
+document.addEventListener('DOMContentLoaded', () => {
+    new ChatWidget();
+});

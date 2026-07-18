@@ -1,215 +1,99 @@
-# Setup Guide
+# Setup
 
-This guide walks you through setting up your Talking Resume from scratch.
+## 1. Install prerequisites
 
-## Prerequisites
-
-Before you begin, ensure you have:
-
-- **Node.js 18+** - [Download here](https://nodejs.org/)
-- **npm** - Comes with Node.js
-- **Cloudflare account** - [Sign up free](https://cloudflare.com)
-- **OpenAI API key** - [Get one here](https://platform.openai.com/api-keys)
-- **GitHub account** - For deployment (optional but recommended)
-
-## Step 1: Clone the Repository
+Install Node.js 22.13 or newer, then create accounts with [OpenAI](https://platform.openai.com/) and [Cloudflare](https://dash.cloudflare.com/).
 
 ```bash
-# Clone the repo
-git clone https://github.com/YOUR_USERNAME/talkingresume.git
-cd talkingresume
-
-# Install dependencies
+node --version
 npm install
 ```
 
-## Step 2: Set Up Cloudflare
+Wrangler is installed locally by the project. Use it through the npm scripts or `npx wrangler`; a global installation is unnecessary.
 
-### Install Wrangler CLI
-
-Wrangler is Cloudflare's CLI tool for managing Workers and Pages.
-
-```bash
-# It's already in devDependencies, but you can also install globally
-npm install -g wrangler
-
-# Login to Cloudflare
-npx wrangler login
-```
-
-### Create KV Namespace
-
-KV (Key-Value) storage holds your resume context and chat logs.
-
-```bash
-# Create the namespace
-npx wrangler kv:namespace create "RESUME_DATA"
-```
-
-You'll see output like:
-```
-🌀 Creating namespace with title "resume-chat-RESUME_DATA"
-✨ Success!
-Add the following to your configuration file in your kv_namespaces array:
-{ binding = "RESUME_DATA", id = "abc123..." }
-```
-
-**Copy the `id` value** and update `wrangler.toml`:
-
-```toml
-[[kv_namespaces]]
-binding = "RESUME_DATA"
-id = "YOUR_NAMESPACE_ID_HERE"  # <-- Replace this
-```
-
-## Step 3: Configure Environment Variables
-
-### For Local Development
-
-Create a `.dev.vars` file in the project root:
+## 2. Configure local secrets
 
 ```bash
 cp .dev.vars.example .dev.vars
 ```
 
-Edit `.dev.vars` with your actual values:
+Set at least:
 
-```
-OPENAI_API_KEY=sk-your-openai-api-key-here
-ADMIN_SECRET=choose-a-secure-secret-for-admin-access
-```
-
-> **Important**: Never commit `.dev.vars` to git. It's already in `.gitignore`.
-
-### For Production
-
-Set these in Cloudflare Pages Dashboard:
-1. Go to your project → Settings → Environment Variables
-2. Add `OPENAI_API_KEY` and `ADMIN_SECRET`
-
-## Step 4: Customize Your Content
-
-### 1. Edit the Resume (public/index.html)
-
-Update the visible resume content:
-- Your name and title
-- Profile photo (replace `public/images/profile.jpeg`)
-- Contact links (LinkedIn, GitHub, email)
-- Work experience
-- Skills
-
-### 2. Edit the AI Knowledge Base (src/context/hidden-context.json)
-
-This is the detailed information the AI uses to answer questions:
-
-```json
-{
-    "name": "Your Name",
-    "currentRole": "Your Title",
-    "summary": "Brief professional summary...",
-    "hobbies": [...],
-    "tech_journey": {...},
-    "achievements": {...},
-    "experience": [...],
-    "skills": {...},
-    "certifications": [...]
-}
+```dotenv
+OPENAI_API_KEY=your-key
+ADMIN_SECRET=a-random-secret-at-least-16-characters-long
 ```
 
-See [Customization Guide](CUSTOMIZATION.md) for detailed field descriptions.
+`.dev.vars` is ignored by Git. Do not add secrets to `wrangler.toml`, source files, or the context JSON.
 
-### 3. Upload Context to KV
+## 3. Customize the resume
 
-```bash
-npm run upload-context
-```
+Edit these three sources:
 
-## Step 5: Run Locally
+- `public/index.html`: visitor-visible resume content and links
+- `public/images/profile.jpeg`: profile image
+- `src/context/hidden-context.json`: additional facts available to the assistant
+
+Keep the visible resume and context JSON consistent. The model is instructed not to invent missing information.
+
+## 4. Run locally
 
 ```bash
 npm run dev
 ```
 
-Visit `http://localhost:8788` to test your resume.
+Open `http://localhost:8788`. Without KV, the application emits no interaction logs and skips its application-level rate limit.
 
-### Test the Chat
+## 5. Enable optional KV features
 
-- Click the chat bubble (💬) in the bottom-right
-- Ask questions like "What are your hobbies?" or "Tell me about your experience"
+Create a namespace:
 
-### View Logs (Admin)
+```bash
+npx wrangler login
+npx wrangler kv namespace create RESUME_DATA
+```
 
-Visit: `http://localhost:8788/api/logs?auth=YOUR_ADMIN_SECRET`
+Uncomment this block in `wrangler.toml` and paste the returned ID:
 
-## Step 6: Deploy to Production
+```toml
+[[kv_namespaces]]
+binding = "RESUME_DATA"
+id = "YOUR_KV_NAMESPACE_ID"
+```
 
-### Option A: Cloudflare Pages (Recommended)
+Restart the development server after changing bindings. Wrangler keeps local KV data separate from production data by default.
 
-1. **Push to GitHub**
-   ```bash
-   git add .
-   git commit -m "Initial setup"
-   git push origin main
-   ```
+## 6. Validate
 
-2. **Connect to Cloudflare Pages**
-   - Go to [Cloudflare Dashboard](https://dash.cloudflare.com/) → Pages
-   - Click "Create a project" → "Connect to Git"
-   - Select your repository
+```bash
+npm run check
+npm audit
+```
 
-3. **Configure Build Settings**
-   - Framework preset: None
-   - Build command: (leave empty)
-   - Build output directory: `public`
+Do not deploy if either command fails.
 
-4. **Add Environment Variables**
-   - Settings → Environment Variables
-   - Add `OPENAI_API_KEY` (your OpenAI key)
-   - Add `ADMIN_SECRET` (your chosen secret)
-
-5. **Bind KV Namespace**
-   - Settings → Functions → KV namespace bindings
-   - Variable name: `RESUME_DATA`
-   - KV namespace: Select your namespace
-
-6. **Upload Production Context**
-   ```bash
-   npx wrangler kv:key put --namespace-id "YOUR_NAMESPACE_ID" "hidden-context" --path src/context/hidden-context.json
-   ```
-
-7. **Deploy**
-   - Cloudflare will auto-deploy on every push to main
-
-### Option B: Manual Deploy
+## 7. Deploy
 
 ```bash
 npm run deploy
 ```
 
-## Step 7: Custom Domain (Optional)
+In the Cloudflare Pages project settings:
 
-1. In Cloudflare Pages, go to Custom domains
-2. Add your domain (e.g., `resume.yourdomain.com`)
-3. Follow DNS configuration instructions
+1. Add `OPENAI_API_KEY` as an encrypted secret.
+2. Add `ADMIN_SECRET` as an encrypted secret if the logs dashboard is enabled.
+3. Add optional configuration from `.dev.vars.example`.
+4. Confirm the `RESUME_DATA` KV binding if rate limiting or logs are required.
+5. Redeploy after changing variables or bindings.
 
-## Cost Breakdown
+For Git-based deployment, use `public` as the build output directory and keep the repository's `wrangler.toml` as the Pages configuration source.
 
-### Cloudflare (Free Tier)
-- 100,000 requests/month
-- Unlimited bandwidth
-- Free SSL
+## 8. Verify the deployment
 
-### OpenAI API
-| Usage | Approximate Cost |
-|-------|-----------------|
-| 100 conversations/month | ~$0.20-0.50 |
-| 1,000 conversations/month | ~$2-5 |
-| 10,000 conversations/month | ~$20-50 |
+Check the static page, submit a chat question, and verify the logs endpoint:
 
-*Costs based on GPT-3.5-turbo with smart context selection (~500-1500 tokens/request)*
+```bash
+curl -i -H "Authorization: Bearer YOUR_ADMIN_SECRET" https://YOUR_DOMAIN/api/logs
+```
 
-## Next Steps
-
-- [Customize your content →](CUSTOMIZATION.md)
-- [Understand the architecture →](ARCHITECTURE.md)
-- [Troubleshoot issues →](TROUBLESHOOTING.md)
+Also verify that an unauthenticated request receives `401`, an unsupported chat method receives `405`, and a missing `OPENAI_API_KEY` fails with a non-sensitive `503` response.

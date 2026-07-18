@@ -1,43 +1,34 @@
 {
-  "name": "talking-resume",
-  "version": "1.0.0",
-  "description": "AI-powered interactive resume template with chat interface. Built with Cloudflare Pages and OpenAI.",
-  "main": "index.js",
-  "scripts": {
-    "dev": "wrangler pages dev public",
-    "deploy": "wrangler pages deploy public",
-    "upload-context": "node scripts/upload-context.js",
-    "test-logs": "node scripts/test-logging.js"
-  },
-  "keywords": [
-    "resume",
-    "ai",
-    "chatbot",
-    "cloudflare",
-    "openai",
-    "gpt",
-    "portfolio",
-    "interactive",
-    "template"
-  ],
-  "author": "",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/talkingresume.git"
-  },
-  "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/talkingresume/issues"
-  },
-  "homepage": "https://github.com/YOUR_USERNAME/talkingresume#readme",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "@cloudflare/workers-types": "^4.20240117.0",
-    "wrangler": "^3.22.1"
-  },
-  "devDependencies": {
-    "typescript": "^5.3.3"
-  }
+    "name": "talking-resume",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "AI-powered interactive resume built with Cloudflare Pages and OpenAI.",
+    "scripts": {
+        "build": "wrangler pages functions build --outdir .wrangler/functions-build",
+        "check": "npm run lint && npm run format:check && npm test && npm run build",
+        "deploy": "wrangler pages deploy",
+        "dev": "wrangler pages dev",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "lint": "eslint .",
+        "test": "node --test"
+    },
+    "keywords": [
+        "resume",
+        "ai",
+        "chatbot",
+        "cloudflare",
+        "openai",
+        "portfolio"
+    ],
+    "license": "MIT",
+    "engines": {
+        "node": ">=22.13.0"
+    },
+    "devDependencies": {
+        "eslint": "^10.7.0",
+        "prettier": "^3.9.5",
+        "wrangler": "^4.112.0"
+    }
 }

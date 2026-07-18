@@ -1,14 +1,16 @@
-resume-chat/
-├── functions/              # Cloudflare Pages Functions
-│   └── api/
-│       └── chat.js        # Chat API endpoint
-├── public/                # Static files served directly
+talkingresume/
+├── .github/workflows/       # Continuous integration
+├── public/                 # Static resume and chat interface
+│   ├── images/
+│   ├── js/chat.js
 │   ├── index.html
-│   ├── styles.css
-│   └── js/
-│       └── chat.js        # Frontend chat functionality
-├── src/                   # Source files that might need processing
-│   └── context/
-│       └── hidden-context.json
+│   └── styles.css
+├── functions/
+│   ├── _shared/           # Domain and infrastructure modules
+│   └── api/               # Cloudflare Pages route handlers
+├── src/context/           # Server-bundled resume knowledge base
+├── test/                  # Unit and endpoint tests
+├── docs/                  # Project documentation
+├── eslint.config.js
 ├── package.json
-└── README.md 
+└── wrangler.toml
